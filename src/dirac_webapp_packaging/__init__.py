@@ -37,8 +37,12 @@ class build_extjs_sources(Command):
         return []
 
     def run(self):
+        if "DIRAC_WEBAPP_NO_COMPILE" in os.environ:
+            log.warn("Skipping webapp compilation as DIRAC_WEBAPP_NO_COMPILE is set")
+            return
+
         cmd = self._cmd
-        log.info('> %r', shlex.join(cmd))
+        log.info('> %s', shlex.join(cmd))
         subprocess.check_call(cmd)
 
     @property
