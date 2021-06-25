@@ -1,7 +1,10 @@
+import importlib.metadata
 import os
 import shlex
 import shutil
 import subprocess
+import tempfile
+from pathlib import Path
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
@@ -17,7 +20,6 @@ from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 class build_extjs_sources(Command):
     user_options = []
-    # _docker_image = "diracgrid/dirac-distribution:latest"
     _docker_image = "chrisburr/dirac-distribution:latest"
     _available_exes = [
         "docker",
@@ -47,10 +49,12 @@ class build_extjs_sources(Command):
 
     @property
     def _pkg_name(self):
-        packages = [x for x in self.distribution.packages if "." not in x]
-        if len(packages) != 1:
-            raise NotImplementedError("Failed to find the package name")
-        return packages[0]
+        if not hasattr(self, "__name"):
+            packages = [x for x in self.distribution.packages if "." not in x]
+            if len(packages) != 1:
+                raise NotImplementedError(f"Failed to find the package name: {packages}")
+            self.__name = packages[0]
+        return self.__name
 
     @property
     def _path(self):
@@ -67,32 +71,65 @@ class build_extjs_sources(Command):
 
         cmd = [full_exe]
         cmd += getattr(self, f"_{self._exe}_args")
-        cmd += ["-D=/opt/src", f"-n={self._pkg_name}", "--py3-style"]
+        cmd += ["-D=/opt", f"-n={self._pkg_name}", "--py3-style"]
         return cmd
+
+    def _bind_mounts(self):
+        for entrypoint in importlib.metadata.entry_points().get('dirac', []):
+            if self._pkg_name == entrypoint.module:
+                # Don't consider the current package
+                continue
+            metadata = entrypoint.load()()
+            if metadata.get("web_resources", {}).get("static"):
+                spec = importlib.util.find_spec(entrypoint.module)
+                module_path = Path(spec.origin).parent
+                log.info("Found WebApp module %s at %s", entrypoint.module, module_path)
+                yield entrypoint.module, module_path
 
     @property
     def _docker_args(self):
-        return [
+        cmd = [
             "run",
             "--rm",
-            f"-v={self._path}:/opt",
-            "-w=/opt",
+        ]
+        for name, path in self._bind_mounts():
+            cmd += [f"-v={path}:/opt/{name}:ro"]
+        cmd += [f"-v={self._path}/src/{self._pkg_name}:/opt/{self._pkg_name}"]
+        cmd += [
+            "-w=/tmp",
             f"-u={os.getuid()}:{os.getgid()}",
             self._docker_image,
             "/dirac-webapp-compile.py",
         ]
+        return cmd
 
     @property
     def _singularity_args(self):
-        return [
+        cmd = [
             "run",
             "--writable",
             "--containall",
-            "--bind",
-            f"{self._path}:/opt",
+        ]
+        # In order to make a writable container with singularity bound
+        # directories must already exist. To ensure this make a fake /opt
+        # directory which contains the required folders and mount it before
+        # any other bind mounts
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmpdir = Path(self._tmpdir.__enter__())
+        cmd += [f"--bind={tmpdir}:/opt"]
+        # Add any dependencies to the container
+        for name, path in self._bind_mounts():
+            (tmpdir / name).mkdir()
+            cmd += [f"--bind={path}:/opt/{name}:ro"]
+        # Add the current package to the container
+        (tmpdir / self._pkg_name).mkdir()
+        cmd += [f"--bind={self._path}/src/{self._pkg_name}:/opt/{self._pkg_name}"]
+        # Add the remaining arguments
+        cmd += [
             f"docker://{self._docker_image}",
             "/dirac-webapp-compile.py",
         ]
+        return cmd
 
 
 class develop(_develop):
