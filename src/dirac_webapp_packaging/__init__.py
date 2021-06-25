@@ -20,7 +20,7 @@ from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 class build_extjs_sources(Command):
     user_options = []
-    _docker_image = "chrisburr/dirac-distribution:latest"
+    _docker_image = "diracgrid/dirac-distribution:latest"
     _available_exes = [
         "docker",
         "singularity",
