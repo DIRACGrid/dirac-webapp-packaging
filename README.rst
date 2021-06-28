@@ -29,10 +29,17 @@ and, assuming your other metadata is in a ``setup.cfg``, create a ``setup.py`` f
 
 .. code-block:: python
 
-  from dirac_webapp_packaging import extjs_cmdclass
+  from dirac_webapp_packaging import gen_extjs_cmdclass, find_data_files
   from setuptools import setup
 
-  setup(cmdclass=extjs_cmdclass)
+  setup(
+      cmdclass=gen_extjs_cmdclass(),
+      # Replace PKG_NAME as appropriate
+      data_files=find_data_files(
+          source_dir="src/PKG_NAME/WebApp/static/extjs",
+          dest_dir="share/dirac/PKG_NAME/static/extjs",
+      )
+  )
 
 If you are building an extension to any of the pages in WebAppDIRAC ``pyproject.toml`` file the ``requires`` section under ``build-system`` must be modified slightly:
 
@@ -41,6 +48,18 @@ If you are building an extension to any of the pages in WebAppDIRAC ``pyproject.
   [build-system]
   # NOTE: Make sure to keep the runtime requirement in setup.cfg in sync with this version
   requires = ["dirac_webapp_packaging~=1.0", "WebAppDIRAC ~=4.3.0a0", "setuptools_scm[toml]>=3.4"]
+
+Additionally the ``dirac`` ``extension_metadata`` entrypoint should be modified to declare the static resources:
+
+.. code-block:: python
+
+  def extension_metadata():
+      return {
+          "priority": NNN,
+          "web_resources": {
+              "static": [Path(sys.prefix) / "share" / "dirac" / PKG_NAME / "static"],
+          }
+      }
 
 Changelog
 ~~~~~~~~~

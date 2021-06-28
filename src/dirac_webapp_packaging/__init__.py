@@ -4,6 +4,8 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from collections import defaultdict
+from glob import glob
 from pathlib import Path
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
@@ -144,8 +146,22 @@ class bdist_wheel(_bdist_wheel):
         super().run()
 
 
-extjs_cmdclass = {
-    "develop": develop,
-    "bdist_wheel": bdist_wheel,
-    "build_extjs_sources": build_extjs_sources,
-}
+def find_data_files(source_dir, dest_dir, start=None):
+    data_files = defaultdict(list)
+    data_files.update(start or {})
+
+    source_dir = Path(source_dir)
+    dest_dir = Path(dest_dir)
+    for source_fn in source_dir.glob("**/*"):
+        if source_fn.is_file():
+            destination_fn = dest_dir / source_fn.relative_to(source_dir)
+            data_files[str(destination_fn.parent)] += [str(source_fn)]
+    return list(data_files.items())
+
+
+def gen_extjs_cmdclass():
+    return {
+        "develop": develop,
+        "bdist_wheel": bdist_wheel,
+        "build_extjs_sources": build_extjs_sources,
+    }
