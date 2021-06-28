@@ -17,7 +17,7 @@ from setuptools import Command
 # Note: distutils must be imported after setuptools
 from distutils import log
 from setuptools.command.develop import develop as _develop
-from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
+from setuptools.command.sdist import sdist as _sdist
 
 
 class build_extjs_sources(Command):
@@ -82,11 +82,17 @@ class build_extjs_sources(Command):
                 # Don't consider the current package
                 continue
             metadata = entrypoint.load()()
-            if metadata.get("web_resources", {}).get("static"):
+            static_dirs = metadata.get("web_resources", {}).get("static")
+            if static_dirs:
                 spec = importlib.util.find_spec(entrypoint.module)
                 module_path = Path(spec.origin).parent
                 log.info("Found WebApp module %s at %s", entrypoint.module, module_path)
                 yield entrypoint.module, module_path
+                if len(static_dirs) != 1:
+                    raise NotImplementedError(static_dirs)
+                log.info("Mounting static directory %s", static_dirs)
+                (module_path / "WebApp" / "static").mkdir(parents=True, exist_ok=True)
+                yield f"{entrypoint.module}/WebApp/static", static_dirs[0]
 
     @property
     def _docker_args(self):
@@ -121,7 +127,7 @@ class build_extjs_sources(Command):
         cmd += [f"--bind={tmpdir}:/opt"]
         # Add any dependencies to the container
         for name, path in self._bind_mounts():
-            (tmpdir / name).mkdir()
+            (tmpdir / name).mkdir(parents=True, exist_ok=True)
             cmd += [f"--bind={path}:/opt/{name}:ro"]
         # Add the current package to the container
         (tmpdir / self._pkg_name).mkdir()
@@ -140,7 +146,7 @@ class develop(_develop):
         super().run()
 
 
-class bdist_wheel(_bdist_wheel):
+class sdist(_sdist):
     def run(self):
         self.run_command("build_extjs_sources")
         super().run()
@@ -162,6 +168,6 @@ def find_data_files(source_dir, dest_dir, start=None):
 def gen_extjs_cmdclass():
     return {
         "develop": develop,
-        "bdist_wheel": bdist_wheel,
+        "sdist": sdist,
         "build_extjs_sources": build_extjs_sources,
     }
