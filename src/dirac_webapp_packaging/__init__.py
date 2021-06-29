@@ -4,8 +4,6 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from collections import defaultdict
-from glob import glob
 from pathlib import Path
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
@@ -17,7 +15,7 @@ from setuptools import Command
 # Note: distutils must be imported after setuptools
 from distutils import log
 from setuptools.command.develop import develop as _develop
-from setuptools.command.sdist import sdist as _sdist
+from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 
 class build_extjs_sources(Command):
@@ -82,17 +80,11 @@ class build_extjs_sources(Command):
                 # Don't consider the current package
                 continue
             metadata = entrypoint.load()()
-            static_dirs = metadata.get("web_resources", {}).get("static")
-            if static_dirs:
+            if metadata.get("web_resources", {}).get("static"):
                 spec = importlib.util.find_spec(entrypoint.module)
                 module_path = Path(spec.origin).parent
                 log.info("Found WebApp module %s at %s", entrypoint.module, module_path)
                 yield entrypoint.module, module_path
-                if len(static_dirs) != 1:
-                    raise NotImplementedError(static_dirs)
-                log.info("Mounting static directory %s", static_dirs)
-                (module_path / "WebApp" / "static").mkdir(parents=True, exist_ok=True)
-                yield f"{entrypoint.module}/WebApp/static", static_dirs[0]
 
     @property
     def _docker_args(self):
@@ -127,7 +119,7 @@ class build_extjs_sources(Command):
         cmd += [f"--bind={tmpdir}:/opt"]
         # Add any dependencies to the container
         for name, path in self._bind_mounts():
-            (tmpdir / name).mkdir(parents=True, exist_ok=True)
+            (tmpdir / name).mkdir()
             cmd += [f"--bind={path}:/opt/{name}:ro"]
         # Add the current package to the container
         (tmpdir / self._pkg_name).mkdir()
@@ -146,28 +138,14 @@ class develop(_develop):
         super().run()
 
 
-class sdist(_sdist):
+class bdist_wheel(_bdist_wheel):
     def run(self):
         self.run_command("build_extjs_sources")
         super().run()
 
 
-def find_data_files(source_dir, dest_dir, start=None):
-    data_files = defaultdict(list)
-    data_files.update(start or {})
-
-    source_dir = Path(source_dir)
-    dest_dir = Path(dest_dir)
-    for source_fn in source_dir.glob("**/*"):
-        if source_fn.is_file():
-            destination_fn = dest_dir / source_fn.relative_to(source_dir)
-            data_files[str(destination_fn.parent)] += [str(source_fn)]
-    return list(data_files.items())
-
-
-def gen_extjs_cmdclass():
-    return {
-        "develop": develop,
-        "sdist": sdist,
-        "build_extjs_sources": build_extjs_sources,
-    }
+extjs_cmdclass = {
+    "develop": develop,
+    "bdist_wheel": bdist_wheel,
+    "build_extjs_sources": build_extjs_sources,
+}

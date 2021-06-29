@@ -29,17 +29,10 @@ and, assuming your other metadata is in a ``setup.cfg``, create a ``setup.py`` f
 
 .. code-block:: python
 
-  from dirac_webapp_packaging import gen_extjs_cmdclass, find_data_files
+  from dirac_webapp_packaging import extjs_cmdclass
   from setuptools import setup
 
-  setup(
-      cmdclass=gen_extjs_cmdclass(),
-      # Replace PKG_NAME as appropriate
-      data_files=find_data_files(
-          source_dir="src/PKG_NAME/WebApp/static/extjs",
-          dest_dir="share/dirac/PKG_NAME/static/extjs",
-      )
-  )
+  setup(cmdclass=extjs_cmdclass)
 
 If you are building an extension to any of the pages in WebAppDIRAC ``pyproject.toml`` file the ``requires`` section under ``build-system`` must be modified slightly:
 
@@ -53,16 +46,23 @@ Additionally the ``dirac`` ``extension_metadata`` entrypoint should be modified 
 
 .. code-block:: python
 
+  import importlib.resources
+
   def extension_metadata():
       return {
-          "priority": NNN,
-          "web_resources": {
-              "static": [Path(sys.prefix) / "share" / "dirac" / PKG_NAME / "static"],
-          }
+         "priority": NNN,
+         "web_resources": {
+            "static": [importlib.resources.files(PKG_NAME) / "WebApp" / "static"],
+         }
       }
 
 Changelog
 ~~~~~~~~~
+
+1.0.1
+^^^^^
+
+* Switch back to using ``package_data`` instead of ``data_files`` for distributing assets
 
 1.0.0
 ^^^^^
