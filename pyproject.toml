@@ -1,7 +1,38 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4"]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=3.4"]
 build-backend = "setuptools.build_meta"
 
 # Enable setuptools_scm to compute the version number from the most recent tag
 # https://github.com/pypa/setuptools_scm/#pyprojecttoml-usage
 [tool.setuptools_scm]
+
+[project]
+name = "dirac-webapp-packaging"
+description = "Build system for compiling javascript sources for DIRAC WebApps"
+readme = "README.rst"
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-only"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Environment :: Web Environment",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Distributed Computing",
+]
+dependencies = [
+    "setuptools >=42",
+    "wheel",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://diracgrid.org"
+Repository = "https://github.com/DIRACGrid/dirac-webapp-packaging"
+Issues = "https://github.com/DIRACGrid/dirac-webapp-packaging/issues"
+Security = "https://github.com/DIRACGrid/dirac-webapp-packaging/security/policy"
+
+[tool.setuptools.packages.find]
+where = ["src"]
